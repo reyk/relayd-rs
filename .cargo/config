@@ -1,0 +1,3 @@
+[alias]
+ci-clippy = "clippy --all --workspace --all-features -- -Dwarnings -Drust-2018-idioms"
+ci-fmt = "fmt --all -- --check"
