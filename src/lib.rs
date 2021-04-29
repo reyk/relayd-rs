@@ -1,5 +1,6 @@
 mod error;
 mod health;
+mod options;
 mod parent;
 mod redirect;
 mod relay;
@@ -7,6 +8,7 @@ mod relay;
 use privsep_derive::Privsep;
 pub use {
     error::Error,
+    options::Options,
     privsep::process::{Child, Parent},
 };
 

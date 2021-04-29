@@ -6,6 +6,8 @@ use std::io;
 pub enum Error {
     #[display(fmt = "I/O error: {}", "_0")]
     IoError(io::Error),
+    #[display(fmt = "Invalid arguments: {}", "_0")]
+    Options(getopts::Fail),
     #[display(fmt = "Privilge separation error: {}", "_0")]
     PrivsepError(privsep::Error),
 }
