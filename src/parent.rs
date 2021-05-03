@@ -1,22 +1,24 @@
+use crate::{config::Config, error::Error, options::Options};
 use nix::sys::wait::{waitpid, WaitStatus};
-use privsep::process::Parent;
+use privsep::{process::Parent, Error as PrivsepError};
 use privsep_log::{info, warn};
 use std::{process, sync::Arc};
 use tokio::signal::unix::{signal, SignalKind};
 
 pub async fn main<const N: usize>(
     parent: Parent<N>,
-    config: privsep::Config,
+    log_config: privsep::Config,
 ) -> Result<(), privsep::Error> {
-    let _guard = privsep_log::async_logger(&parent.to_string(), &config)
+    let _guard = privsep_log::async_logger(&parent.to_string(), &log_config)
         .await
-        .map_err(|err| privsep::Error::GeneralError(Box::new(err)))?;
+        .map_err(|err| PrivsepError::GeneralError(Box::new(err)))?;
 
-    let _parent = Arc::new(parent);
+    init(parent)
+        .await
+        .map_err(|err| PrivsepError::GeneralError(Box::new(err)))?;
+    let mut sigchld = signal(SignalKind::child())?;
 
     info!("Started");
-
-    let mut sigchld = signal(SignalKind::child())?;
 
     loop {
         tokio::select! {
@@ -34,4 +36,19 @@ pub async fn main<const N: usize>(
             }
         }
     }
+}
+
+pub async fn init<const N: usize>(parent: Parent<N>) -> Result<(), Error> {
+    let _parent = Arc::new(parent);
+
+    let opts = Options::new();
+    let matches = opts.parse()?;
+
+    let path = matches
+        .opt_str("f")
+        .unwrap_or_else(|| crate::RELAYD_CONFIG.to_string());
+
+    let _config = Config::load(&path).await?;
+
+    Ok(())
 }

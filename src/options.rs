@@ -20,7 +20,13 @@ impl Options {
         let mut opts = getopts::Options::new();
 
         opts.optflag("d", "", "Do not daemonize");
-        opts.optflagmulti("v", "", "Enable verbose logging");
+        opts.optopt(
+            "f",
+            "",
+            "Specify an alternative configuration file",
+            crate::RELAYD_CONFIG,
+        );
+        opts.optflagmulti("v", "verbose", "Enable verbose logging");
 
         Self { args, prog, opts }
     }

@@ -12,10 +12,13 @@ futures = "0.3.14"
 getopts = "0.2.21"
 log = "0.4.14"
 nix = "0.20.0"
+nom = "6.1.2"
 privsep = { version = "0.0.1-test.5", path = "../privsep-rs/privsep", features = [ "log" ] }
 privsep-derive = { version = "0.0.1-test.5", path = "../privsep-rs/privsep-derive" }
 privsep-log = { version = "0.0.1-test.1", path = "../privsep-rs/log" }
+serde = "1.0.125"
+serde_derive = "1.0.125"
 
 [dependencies.tokio]
 version = "1.4.0"
-features = [ "net", "time", "rt-multi-thread", "macros", "io-util", "signal" ]
+features = [ "fs", "net", "time", "rt-multi-thread", "macros", "io-util", "signal" ]

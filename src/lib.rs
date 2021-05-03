@@ -1,3 +1,4 @@
+mod config;
 mod error;
 mod health;
 mod options;
@@ -26,3 +27,5 @@ pub enum Privsep {
     /// L7 Relays
     Relay,
 }
+
+pub const RELAYD_CONFIG: &str = "/etc/relayd.conf";

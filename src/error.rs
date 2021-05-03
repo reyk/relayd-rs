@@ -10,4 +10,8 @@ pub enum Error {
     Options(getopts::Fail),
     #[display(fmt = "Privilge separation error: {}", "_0")]
     PrivsepError(privsep::Error),
+    #[display(fmt = "Parser error: {}", "_0")]
+    ParserError(String),
 }
+
+impl std::error::Error for Error {}
