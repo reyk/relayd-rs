@@ -1,10 +1,19 @@
 use crate::config::{Config, Protocol, ProtocolType, Redirect, Table, Variable};
 use nom::{
-    alt, character::complete::multispace0, delimited, do_parse, error::VerboseError, many0,
-    many_till, map, named, opt, peek, tag, take_until, take_while,
+    branch::alt,
+    bytes::complete::{escaped_transform, is_not, tag, take_until, take_while},
+    character::complete::{char, multispace0},
+    combinator::{all_consuming, map, map_parser, opt, peek, value},
+    error::VerboseError,
+    multi::{many0, many_till},
+    sequence::{delimited, pair, preceded, separated_pair, tuple},
+    IResult,
 };
+
 //use nom::{character::complete::*, error::*, *};
 use privsep_log::debug;
+
+type Result<'a, T> = IResult<&'a str, T, VerboseError<&'a str>>;
 
 enum Section {
     Table(Table),
@@ -13,126 +22,122 @@ enum Section {
     Ignore,
 }
 
-named!(
-    section<&str, Section, VerboseError<&str>>,
-    alt!(
-        table => { |t| {
+fn section(s: &str) -> Result<Section> {
+    alt((
+        map(table, |t| {
             debug!("{:?}", t);
             Section::Table(t)
-        } } |
-        redirect => { |r| {
+        }),
+        map(redirect, |r| {
             debug!("{:?}", r);
             Section::Redirect(r)
-        } } |
-        protocol => { |p| {
+        }),
+        map(protocol, |p| {
             debug!("{:?}", p);
             Section::Protocol(p)
-        } } |
-        comment => { |c| {
+        }),
+        map(comment, |c| {
             debug!("#{}", c);
             Section::Ignore
-        } } |
-        variable => { |v| {
+        }),
+        map(variable, |v| {
             debug!("{:?}", v);
             Section::Ignore
-        } } |
-        nl => { |_| Section::Ignore }
-    )
-);
+        }),
+        map(nl, |_| Section::Ignore),
+    ))(s)
+}
 
-named!(
-    table<&str, Table, VerboseError<&str>>,
-    do_parse!(
-        tag!("table") >>
-        nl >>
-        name: delimited!(
-            tag!("<"),
-            string,
-            tag!(">")
-        ) >>
-        nl >>
-        tag!("{") >>
-        take_until!("}") >>
-        line >>
-        ({ Table { name } })
-    )
-);
+fn table(s: &str) -> Result<Table> {
+    map(
+        tuple((
+            tag("table"),
+            nl,
+            delimited(char('<'), string, char('>')),
+            nl,
+            char('{'),
+            take_until("}"),
+            line,
+        )),
+        |(_, _, name, _n, _, _, _)| Table {
+            name: name.to_string(),
+        },
+    )(s)
+}
 
-named!(
-    redirect<&str, Redirect, VerboseError<&str>>,
-    do_parse!(
-        tag!("redirect") >>
-        nl >>
-        name: quoted >>
-        nl >>
-        tag!("{") >>
-        take_until!("}") >>
-        line >>
-        ({ Redirect { name } })
-    )
-);
+fn redirect(s: &str) -> Result<Redirect> {
+    map(
+        tuple((
+            tag("redirect"),
+            nl,
+            quoted,
+            nl,
+            char('{'),
+            take_until("}"),
+            line,
+        )),
+        |(_, _, name, _, _, _, _)| Redirect {
+            name: name.to_string(),
+        },
+    )(s)
+}
 
-named!(
-    protocol_type<&str, ProtocolType, VerboseError<&str>>,
-    alt!(
-        do_parse!(tag!("tcp") >> (ProtocolType::Tcp)) |
-        do_parse!(tag!("http") >> (ProtocolType::Http)) |
-        do_parse!(tag!("dns") >> (ProtocolType::Dns))
-    )
-);
+fn protocol_type(s: &str) -> Result<ProtocolType> {
+    alt((
+        map(tag("tcp"), |_| ProtocolType::Tcp),
+        map(tag("http"), |_| ProtocolType::Http),
+        map(tag("dns"), |_| ProtocolType::Dns),
+    ))(s)
+}
 
-named!(
-    protocol_option<&str, (), VerboseError<&str>>,
-    alt!(
-        do_parse!(tag!("match") >> line >> (())) => { |m| {
+fn protocol_option(s: &str) -> Result<()> {
+    alt((
+        map(preceded(tag("match"), line), |_| {
             debug!("match");
-            m
-        } } |
-        do_parse!(tag!("tcp") >> line >> (())) => { |tcp| {
-            debug!("tcp");
-            tcp
-        } } |
-        do_parse!(tag!("tls") >> line >> (())) => { |tls| {
-           debug!("tls");
-           tls
-        } } |
-        comment => { |c| {
-           debug!("#{}", c);
-           ()
-        } } |
-        nl => { |_nl| {
-           debug!("nl");
-           ()
-        } }
-    )
-);
-
-named!(
-    protocol_options<&str, (), VerboseError<&str>>,
-    delimited!(
-        tag!("{"),
-        map!(many_till!(protocol_option, peek!(tag!("}"))), |_options: (Vec<()>, _)| {
-            // TODO
             ()
         }),
-        tag!("}")
-    )
-);
+        map(preceded(tag("tcp"), line), |_| {
+            debug!("tcp");
+            ()
+        }),
+        map(preceded(tag("tls"), line), |_| ()),
+        map(comment, |_| ()),
+        map(nl, |_| ()),
+    ))(s)
+}
 
-named!(
-    protocol<&str, Protocol, VerboseError<&str>>,
-    do_parse!(
-        typ: opt!(protocol_type) >>
-        nl >>
-        tag!("protocol") >>
-        nl >>
-        name: quoted >>
-        nl >>
-        protocol_options >>
-        line >>
-        ({ Protocol { name, typ: typ.unwrap_or_default() } })
-    )
-);
+fn protocol_options(s: &str) -> Result<()> {
+    delimited(
+        char('{'),
+        map(
+            many_till(protocol_option, peek(char('}'))),
+            |_options: (Vec<()>, _)| {
+                // TODO
+                ()
+            },
+        ),
+        char('}'),
+    )(s)
+}
+
+fn protocol(s: &str) -> Result<Protocol> {
+    map(
+        tuple((
+            opt(protocol_type),
+            nl,
+            tag("protocol"),
+            nl,
+            quoted,
+            nl,
+            protocol_options,
+            line,
+        )),
+        |(typ, _, _, _, name, _, _, _)| Protocol {
+            name: name.to_string(),
+            typ: typ.unwrap_or_default(),
+        },
+    )(s)
+}
 
 fn allowed_in_string(ch: char) -> bool {
     ch.is_ascii_alphanumeric()
@@ -150,69 +155,41 @@ fn allowed_in_string(ch: char) -> bool {
             && ch != '/')
 }
 
-named!(
-    string<&str, String, VerboseError<&str>>,
-    map!(
-        take_while!(allowed_in_string),
-        |b: &str| String::from(b)
-    )
-);
+fn string(s: &str) -> Result<&str> {
+    take_while(allowed_in_string)(s)
+}
 
-named!(
-    line<&str, String, VerboseError<&str>>,
-    map!(
-        do_parse!(line: take_until!("\n") >> nl >> (line)),
-        |s: &str| s.to_string()
-    )
-);
+fn line(s: &str) -> Result<&str> {
+    take_until("\n")(s).and_then(|(s, value)| nl(s).map(|(s, _)| (s, value)))
+}
 
-named!(
-    quoted<&str, String, VerboseError<&str>>,
-    alt!(
-        do_parse!(
-            value: delimited!(
-                tag!("\""),
-                take_until!("\""),
-                tag!("\"")
-            )
-            >>
-            (String::from(value))
-        ) |
-        do_parse!(
-            value: string >>
-            (String::from(value))
-        )
-    )
-);
+fn quoted(s: &str) -> Result<&str> {
+    alt((delimited(char('\"'), take_until("\""), char('\"')), string))(s)
+}
 
-named!(nl<&str, Option<String>, VerboseError<&str>>,
-   alt!(
-       map!(multispace0, |_| None) |
-       map!(comment, |c| Some(c))
-    )
-);
+fn nl(s: &str) -> Result<Option<&str>> {
+    alt((map(multispace0, |_| None), map(comment, |c| Some(c))))(s)
+}
 
-named!(comment<&str, String, VerboseError<&str>>,
-   do_parse!(
-       nl >>
-       tag!("#") >>
-       comment: line >>
-       nl >>
-       (comment)
-   )
-);
+fn comment(s: &str) -> Result<&str> {
+    preceded(pair(nl, char('#')), line)(s)
+}
 
-named!(variable<&str, Variable, VerboseError<&str>>,
-   do_parse!(
-       key: string >>
-       tag!("=") >>
-       value: quoted >>
-       (Variable { key, value })
-   )
-);
+fn variable(s: &str) -> Result<Variable> {
+    map(separated_pair(string, char('='), quoted), |(key, value)| {
+        Variable {
+            key: key.to_string(),
+            value: value.to_string(),
+        }
+    })(s)
+}
 
-named!(pub config_parser<&str, Config, VerboseError<&str>>,
-    map!(many0!(section), |sections: Vec<Section>| {
+pub fn config_preprocess(s: &str) -> IResult<&str, String, VerboseError<&str>> {
+    escaped_transform(is_not("\\"), '\\', value(" ", tag("\n")))(s)
+}
+
+pub fn config_parser(s: &str) -> Result<Config> {
+    all_consuming(map(many0(section), |sections: Vec<Section>| {
         let mut config = Config::default();
         for section in sections {
             match section {
@@ -223,5 +200,5 @@ named!(pub config_parser<&str, Config, VerboseError<&str>>,
             }
         }
         config
-    })
-);
+    }))(s)
+}
