@@ -1,8 +1,9 @@
 mod parser;
 
 use crate::error::Error;
+use derive_more::From;
 use nom::{error::convert_error, Finish};
-use parser::{config_parser, config_preprocess};
+use parser::{config_expand, config_parser};
 use serde_derive::{Deserialize, Serialize};
 use std::path::Path;
 use tokio::fs;
@@ -22,7 +23,7 @@ impl Config {
 
     pub fn parse<S: AsRef<str>>(input: S) -> Result<Self, Error> {
         let input = input.as_ref();
-        let (_, input) = config_preprocess(input)
+        let (_, input) = config_expand(input)
             .finish()
             .map_err(|err| Error::ParserError(convert_error(input, err)))?;
         let input = input.as_ref();
@@ -38,6 +39,9 @@ pub struct Variable {
     key: String,
     value: String,
 }
+
+#[derive(Debug, Default, From)]
+pub struct Variables(Vec<Variable>);
 
 #[derive(Debug, Default, Deserialize, Serialize)]
 pub struct Table {

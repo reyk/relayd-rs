@@ -1,19 +1,17 @@
-use crate::config::{Config, Protocol, ProtocolType, Redirect, Table, Variable};
+use crate::config::{Config, Protocol, ProtocolType, Redirect, Table, Variable, Variables};
 use nom::{
-    branch::alt,
+    branch::{alt, Alt},
     bytes::complete::{escaped_transform, is_not, tag, take_until, take_while},
     character::complete::{char, multispace0},
-    combinator::{all_consuming, map, map_parser, opt, peek, value},
-    error::VerboseError,
+    combinator::{all_consuming, map, opt, peek, value},
+    error::{ParseError, VerboseError},
     multi::{many0, many_till},
     sequence::{delimited, pair, preceded, separated_pair, tuple},
-    IResult,
+    Err, IResult,
 };
-
-//use nom::{character::complete::*, error::*, *};
 use privsep_log::debug;
 
-type Result<'a, T> = IResult<&'a str, T, VerboseError<&'a str>>;
+type CResult<'a, T> = IResult<&'a str, T, VerboseError<&'a str>>;
 
 enum Section {
     Table(Table),
@@ -22,7 +20,7 @@ enum Section {
     Ignore,
 }
 
-fn section(s: &str) -> Result<Section> {
+fn section(s: &str) -> CResult<'_, Section> {
     alt((
         map(table, |t| {
             debug!("{:?}", t);
@@ -48,7 +46,7 @@ fn section(s: &str) -> Result<Section> {
     ))(s)
 }
 
-fn table(s: &str) -> Result<Table> {
+fn table(s: &str) -> CResult<'_, Table> {
     map(
         tuple((
             tag("table"),
@@ -65,7 +63,7 @@ fn table(s: &str) -> Result<Table> {
     )(s)
 }
 
-fn redirect(s: &str) -> Result<Redirect> {
+fn redirect(s: &str) -> CResult<'_, Redirect> {
     map(
         tuple((
             tag("redirect"),
@@ -82,7 +80,7 @@ fn redirect(s: &str) -> Result<Redirect> {
     )(s)
 }
 
-fn protocol_type(s: &str) -> Result<ProtocolType> {
+fn protocol_type(s: &str) -> CResult<'_, ProtocolType> {
     alt((
         map(tag("tcp"), |_| ProtocolType::Tcp),
         map(tag("http"), |_| ProtocolType::Http),
@@ -90,15 +88,13 @@ fn protocol_type(s: &str) -> Result<ProtocolType> {
     ))(s)
 }
 
-fn protocol_option(s: &str) -> Result<()> {
+fn protocol_option(s: &str) -> CResult<'_, ()> {
     alt((
         map(preceded(tag("match"), line), |_| {
             debug!("match");
-            ()
         }),
         map(preceded(tag("tcp"), line), |_| {
             debug!("tcp");
-            ()
         }),
         map(preceded(tag("tls"), line), |_| ()),
         map(comment, |_| ()),
@@ -106,21 +102,20 @@ fn protocol_option(s: &str) -> Result<()> {
     ))(s)
 }
 
-fn protocol_options(s: &str) -> Result<()> {
+fn protocol_options(s: &str) -> CResult<'_, ()> {
     delimited(
         char('{'),
         map(
             many_till(protocol_option, peek(char('}'))),
             |_options: (Vec<()>, _)| {
                 // TODO
-                ()
             },
         ),
         char('}'),
     )(s)
 }
 
-fn protocol(s: &str) -> Result<Protocol> {
+fn protocol(s: &str) -> CResult<'_, Protocol> {
     map(
         tuple((
             opt(protocol_type),
@@ -155,27 +150,27 @@ fn allowed_in_string(ch: char) -> bool {
             && ch != '/')
 }
 
-fn string(s: &str) -> Result<&str> {
+fn string(s: &str) -> CResult<'_, &str> {
     take_while(allowed_in_string)(s)
 }
 
-fn line(s: &str) -> Result<&str> {
+fn line(s: &str) -> CResult<'_, &str> {
     take_until("\n")(s).and_then(|(s, value)| nl(s).map(|(s, _)| (s, value)))
 }
 
-fn quoted(s: &str) -> Result<&str> {
+fn quoted(s: &str) -> CResult<'_, &str> {
     alt((delimited(char('\"'), take_until("\""), char('\"')), string))(s)
 }
 
-fn nl(s: &str) -> Result<Option<&str>> {
-    alt((map(multispace0, |_| None), map(comment, |c| Some(c))))(s)
+fn nl(s: &str) -> CResult<'_, Option<&str>> {
+    alt((map(multispace0, |_| None), map(comment, Some)))(s)
 }
 
-fn comment(s: &str) -> Result<&str> {
+fn comment(s: &str) -> CResult<'_, &str> {
     preceded(pair(nl, char('#')), line)(s)
 }
 
-fn variable(s: &str) -> Result<Variable> {
+fn variable(s: &str) -> CResult<'_, Variable> {
     map(separated_pair(string, char('='), quoted), |(key, value)| {
         Variable {
             key: key.to_string(),
@@ -184,11 +179,47 @@ fn variable(s: &str) -> Result<Variable> {
     })(s)
 }
 
-pub fn config_preprocess(s: &str) -> IResult<&str, String, VerboseError<&str>> {
-    escaped_transform(is_not("\\"), '\\', value(" ", tag("\n")))(s)
+fn variable_section(s: &str) -> CResult<'_, Option<Variable>> {
+    alt((map(variable, Some), map(line, |_| None)))(s)
 }
 
-pub fn config_parser(s: &str) -> Result<Config> {
+impl<'a, E: ParseError<&'a str>> Alt<&'a str, &'a str, E> for &'a Variables {
+    fn choice(&mut self, input: &'a str) -> IResult<&'a str, &'a str, E> {
+        for variable in self.0.iter() {
+            if input.starts_with(&variable.key) {
+                return Ok((&input[variable.key.len()..], &variable.value));
+            }
+        }
+
+        is_not("$")(input)
+    }
+}
+
+// TODO: parse everything in one step
+#[allow(clippy::let_and_return)]
+pub fn config_expand(s: &str) -> IResult<&str, String, VerboseError<&str>> {
+    let (_, variables) = map(
+        many0(variable_section),
+        |variables: Vec<Option<Variable>>| {
+            let variables: Vec<Variable> = variables.into_iter().flatten().collect();
+            Variables::from(variables)
+        },
+    )(s)?;
+    let (_, output) = escaped_transform(is_not("\\"), '\\', value(" ", tag("\n")))(s)?;
+    let result = escaped_transform(is_not("$"), '$', alt(&variables))(output.as_ref())
+        .map_err(|_err: Err<VerboseError<&str>>| {
+            Err::<VerboseError<&str>>::Error(VerboseError::<&str> {
+                errors: vec![(
+                    "",
+                    nom::error::VerboseErrorKind::Context("invalid variable"),
+                )],
+            })
+        })
+        .map(|(_, o)| (s, o));
+    result
+}
+
+pub fn config_parser(s: &str) -> CResult<'_, Config> {
     all_consuming(map(many0(section), |sections: Vec<Section>| {
         let mut config = Config::default();
         for section in sections {

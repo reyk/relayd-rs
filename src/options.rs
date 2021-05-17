@@ -5,10 +5,10 @@ use std::env;
 #[derive(Deref, DerefMut, Display)]
 #[display(fmt = "{}", prog)]
 pub struct Options {
+    pub args: Vec<String>,
     #[deref]
     #[deref_mut]
     opts: getopts::Options,
-    pub args: Vec<String>,
     pub prog: String,
 }
 
@@ -28,7 +28,7 @@ impl Options {
         );
         opts.optflagmulti("v", "verbose", "Enable verbose logging");
 
-        Self { args, prog, opts }
+        Self { args, opts, prog }
     }
 
     pub fn parse(&self) -> Result<getopts::Matches, Error> {
