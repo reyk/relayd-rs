@@ -5,12 +5,12 @@ use crate::config::{
 use nom::{
     branch::alt,
     bytes::complete::{is_not, tag},
-    character::complete::char,
+    character::complete::{char, multispace1},
     combinator::{map, opt},
     error::VerboseError,
     multi::many0,
     sequence::{pair, separated_pair},
-    IResult,
+    Err, IResult,
 };
 
 #[derive(Debug)]
@@ -117,6 +117,29 @@ fn use_variable(s: &str) -> CResult<'_, Token> {
     )(s)
 }
 
+fn include(s: &str) -> CResult<'_, Token> {
+    let (input, (_, file)) = separated_pair(tag("include"), multispace1, quoted)(s)?;
+
+    let output = std::fs::read_to_string(file).map_err(|_err| {
+        Err::<VerboseError<&str>>::Error(VerboseError::<&str> {
+            errors: vec![(
+                input,
+                nom::error::VerboseErrorKind::Context("include file not found"),
+            )],
+        })
+    })?;
+    let (_, tokens) = many0(ast)(&output).map_err(|_err| {
+        Err::<VerboseError<&str>>::Error(VerboseError::<&str> {
+            errors: vec![(
+                input,
+                nom::error::VerboseErrorKind::Context("invalid include"),
+            )],
+        })
+    })?;
+
+    Ok((input, Token::Nested(tokens)))
+}
+
 fn read_line(s: &str) -> CResult<'_, Token> {
     alt((
         map(comment, |_| Token::None),
@@ -129,6 +152,7 @@ fn ast(s: &str) -> CResult<'_, Token> {
         map(variable, Token::Variable),
         escaped_line,
         use_variable,
+        include,
         read_line,
     ))(s)
 }
