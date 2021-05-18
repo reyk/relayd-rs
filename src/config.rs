@@ -2,7 +2,7 @@ mod expand;
 mod parser;
 
 use crate::error::Error;
-use expand::config_expand2 as config_expand;
+use expand::config_expand;
 use nom::{error::convert_error, Finish};
 use parser::config_parser;
 use serde_derive::{Deserialize, Serialize};
@@ -12,6 +12,7 @@ use tokio::fs;
 #[derive(Debug, Default, Deserialize, Serialize)]
 pub struct Config {
     redirects: Vec<Redirect>,
+    relays: Vec<Relay>,
     protocols: Vec<Protocol>,
     tables: Vec<Table>,
 }
@@ -65,6 +66,11 @@ pub struct Table {
 
 #[derive(Debug, Default, Deserialize, Serialize)]
 pub struct Redirect {
+    name: String,
+}
+
+#[derive(Debug, Default, Deserialize, Serialize)]
+pub struct Relay {
     name: String,
 }
 

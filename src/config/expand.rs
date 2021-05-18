@@ -7,7 +7,7 @@ use nom::{
     bytes::complete::{is_not, tag},
     character::complete::{char, multispace1},
     combinator::{map, opt},
-    error::VerboseError,
+    error::{VerboseError, VerboseErrorKind},
     multi::many0,
     sequence::{pair, separated_pair},
     Err, IResult,
@@ -122,18 +122,12 @@ fn include(s: &str) -> CResult<'_, Token> {
 
     let output = std::fs::read_to_string(file).map_err(|_err| {
         Err::<VerboseError<&str>>::Error(VerboseError::<&str> {
-            errors: vec![(
-                input,
-                nom::error::VerboseErrorKind::Context("include file not found"),
-            )],
+            errors: vec![(input, VerboseErrorKind::Context("include file not found"))],
         })
     })?;
     let (_, tokens) = many0(ast)(&output).map_err(|_err| {
         Err::<VerboseError<&str>>::Error(VerboseError::<&str> {
-            errors: vec![(
-                input,
-                nom::error::VerboseErrorKind::Context("invalid include"),
-            )],
+            errors: vec![(input, VerboseErrorKind::Context("invalid include"))],
         })
     })?;
 
@@ -157,7 +151,7 @@ fn ast(s: &str) -> CResult<'_, Token> {
     ))(s)
 }
 
-pub fn config_expand2(
+pub fn config_expand(
     s: &str,
     mut variables: Variables,
 ) -> IResult<&str, String, VerboseError<&str>> {

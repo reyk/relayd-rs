@@ -1,9 +1,9 @@
-use crate::config::{Config, Protocol, ProtocolType, Redirect, Table};
+use crate::config::{Config, Protocol, ProtocolType, Redirect, Relay, Table};
 use nom::{
     branch::alt,
     bytes::complete::{tag, take_until, take_while1},
     character::complete::{char, multispace0},
-    combinator::{all_consuming, map, opt, peek},
+    combinator::{all_consuming, eof, map, not, opt, peek},
     error::VerboseError,
     multi::{many0, many_till},
     sequence::{delimited, pair, preceded, tuple},
@@ -16,30 +16,38 @@ pub(super) type CResult<'a, T> = IResult<&'a str, T, VerboseError<&'a str>>;
 enum Section {
     Table(Table),
     Redirect(Redirect),
+    Relay(Relay),
     Protocol(Protocol),
     Ignore,
 }
 
 fn section(s: &str) -> CResult<'_, Section> {
-    alt((
-        map(table, |t| {
-            debug!("{:?}", t);
-            Section::Table(t)
-        }),
-        map(redirect, |r| {
-            debug!("{:?}", r);
-            Section::Redirect(r)
-        }),
-        map(protocol, |p| {
-            debug!("{:?}", p);
-            Section::Protocol(p)
-        }),
-        map(comment, |c| {
-            debug!("#{}", c);
-            Section::Ignore
-        }),
-        map(nl, |_| Section::Ignore),
-    ))(s)
+    preceded(
+        not(eof),
+        alt((
+            map(table, |t| {
+                debug!("{:?}", t);
+                Section::Table(t)
+            }),
+            map(redirect, |r| {
+                debug!("{:?}", r);
+                Section::Redirect(r)
+            }),
+            map(relay, |r| {
+                debug!("{:?}", r);
+                Section::Relay(r)
+            }),
+            map(protocol, |p| {
+                debug!("{:?}", p);
+                Section::Protocol(p)
+            }),
+            map(comment, |c| {
+                debug!("#{}", c);
+                Section::Ignore
+            }),
+            map(nl, |_| Section::Ignore),
+        )),
+    )(s)
 }
 
 fn table(s: &str) -> CResult<'_, Table> {
@@ -76,6 +84,23 @@ fn redirect(s: &str) -> CResult<'_, Redirect> {
     )(s)
 }
 
+fn relay(s: &str) -> CResult<'_, Relay> {
+    map(
+        tuple((
+            tag("relay"),
+            nl,
+            quoted,
+            nl,
+            char('{'),
+            take_until("}"),
+            line,
+        )),
+        |(_, _, name, _, _, _, _)| Relay {
+            name: name.to_string(),
+        },
+    )(s)
+}
+
 fn protocol_type(s: &str) -> CResult<'_, ProtocolType> {
     alt((
         map(tag("tcp"), |_| ProtocolType::Tcp),
@@ -86,7 +111,10 @@ fn protocol_type(s: &str) -> CResult<'_, ProtocolType> {
 
 fn protocol_option(s: &str) -> CResult<'_, ()> {
     alt((
-        map(preceded(tag("match"), line), |_| {
+        map(preceded(tag("return"), line), |_| {
+            debug!("return");
+        }),
+        map(preceded(alt((tag("block"), tag("match"))), line), |_| {
             debug!("match");
         }),
         map(preceded(tag("tcp"), line), |_| {
@@ -173,6 +201,7 @@ pub fn config_parser(s: &str) -> CResult<'_, Config> {
             match section {
                 Section::Table(t) => config.tables.push(t),
                 Section::Redirect(r) => config.redirects.push(r),
+                Section::Relay(r) => config.relays.push(r),
                 Section::Protocol(p) => config.protocols.push(p),
                 Section::Ignore => (),
             }
