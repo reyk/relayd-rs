@@ -1,11 +1,12 @@
+mod expand;
 mod parser;
 
 use crate::error::Error;
-use derive_more::From;
+use expand::config_expand2 as config_expand;
 use nom::{error::convert_error, Finish};
-use parser::{config_expand, config_parser};
+use parser::config_parser;
 use serde_derive::{Deserialize, Serialize};
-use std::path::Path;
+use std::{collections::HashMap, path::Path};
 use tokio::fs;
 
 #[derive(Debug, Default, Deserialize, Serialize)]
@@ -16,14 +17,17 @@ pub struct Config {
 }
 
 impl Config {
-    pub async fn load<P: AsRef<Path> + ?Sized>(path: &P) -> Result<Self, Error> {
+    pub async fn load<P: AsRef<Path> + ?Sized>(
+        path: &P,
+        variables: Variables,
+    ) -> Result<Self, Error> {
         let input = fs::read_to_string(path).await?;
-        Self::parse(input)
+        Self::parse(input, variables)
     }
 
-    pub fn parse<S: AsRef<str>>(input: S) -> Result<Self, Error> {
+    pub fn parse<S: AsRef<str>>(input: S, variables: Variables) -> Result<Self, Error> {
         let input = input.as_ref();
-        let (_, input) = config_expand(input)
+        let (_, input) = config_expand(input, variables)
             .finish()
             .map_err(|err| Error::ParserError(convert_error(input, err)))?;
         let input = input.as_ref();
@@ -40,8 +44,19 @@ pub struct Variable {
     value: String,
 }
 
-#[derive(Debug, Default, From)]
-pub struct Variables(Vec<Variable>);
+impl From<(String, String)> for Variable {
+    fn from((key, value): (String, String)) -> Self {
+        Self { key, value }
+    }
+}
+
+impl ToString for Variable {
+    fn to_string(&self) -> String {
+        format!("{}=\"{}\"", self.key, self.value)
+    }
+}
+
+pub type Variables = HashMap<String, String>;
 
 #[derive(Debug, Default, Deserialize, Serialize)]
 pub struct Table {
@@ -88,6 +103,10 @@ mod tests {
         .unwrap();
         let config = include_bytes!("../examples/relayd.conf");
 
-        Config::parse(&String::from_utf8(config.to_vec()).unwrap()).unwrap();
+        Config::parse(
+            &String::from_utf8(config.to_vec()).unwrap(),
+            Default::default(),
+        )
+        .unwrap();
     }
 }

@@ -1,17 +1,17 @@
-use crate::config::{Config, Protocol, ProtocolType, Redirect, Table, Variable, Variables};
+use crate::config::{Config, Protocol, ProtocolType, Redirect, Table};
 use nom::{
-    branch::{alt, Alt},
-    bytes::complete::{escaped_transform, is_not, tag, take_until, take_while},
+    branch::alt,
+    bytes::complete::{tag, take_until, take_while1},
     character::complete::{char, multispace0},
-    combinator::{all_consuming, map, opt, peek, value},
-    error::{ParseError, VerboseError},
+    combinator::{all_consuming, map, opt, peek},
+    error::VerboseError,
     multi::{many0, many_till},
-    sequence::{delimited, pair, preceded, separated_pair, tuple},
-    Err, IResult,
+    sequence::{delimited, pair, preceded, tuple},
+    IResult,
 };
 use privsep_log::debug;
 
-type CResult<'a, T> = IResult<&'a str, T, VerboseError<&'a str>>;
+pub(super) type CResult<'a, T> = IResult<&'a str, T, VerboseError<&'a str>>;
 
 enum Section {
     Table(Table),
@@ -36,10 +36,6 @@ fn section(s: &str) -> CResult<'_, Section> {
         }),
         map(comment, |c| {
             debug!("#{}", c);
-            Section::Ignore
-        }),
-        map(variable, |v| {
-            debug!("{:?}", v);
             Section::Ignore
         }),
         map(nl, |_| Section::Ignore),
@@ -150,73 +146,24 @@ fn allowed_in_string(ch: char) -> bool {
             && ch != '/')
 }
 
-fn string(s: &str) -> CResult<'_, &str> {
-    take_while(allowed_in_string)(s)
+pub(super) fn string(s: &str) -> CResult<'_, &str> {
+    take_while1(allowed_in_string)(s)
 }
 
-fn line(s: &str) -> CResult<'_, &str> {
+pub(super) fn line(s: &str) -> CResult<'_, &str> {
     take_until("\n")(s).and_then(|(s, value)| nl(s).map(|(s, _)| (s, value)))
 }
 
-fn quoted(s: &str) -> CResult<'_, &str> {
+pub(super) fn quoted(s: &str) -> CResult<'_, &str> {
     alt((delimited(char('\"'), take_until("\""), char('\"')), string))(s)
 }
 
-fn nl(s: &str) -> CResult<'_, Option<&str>> {
+pub(super) fn nl(s: &str) -> CResult<'_, Option<&str>> {
     alt((map(multispace0, |_| None), map(comment, Some)))(s)
 }
 
-fn comment(s: &str) -> CResult<'_, &str> {
+pub(super) fn comment(s: &str) -> CResult<'_, &str> {
     preceded(pair(nl, char('#')), line)(s)
-}
-
-fn variable(s: &str) -> CResult<'_, Variable> {
-    map(separated_pair(string, char('='), quoted), |(key, value)| {
-        Variable {
-            key: key.to_string(),
-            value: value.to_string(),
-        }
-    })(s)
-}
-
-fn variable_section(s: &str) -> CResult<'_, Option<Variable>> {
-    alt((map(variable, Some), map(line, |_| None)))(s)
-}
-
-impl<'a, E: ParseError<&'a str>> Alt<&'a str, &'a str, E> for &'a Variables {
-    fn choice(&mut self, input: &'a str) -> IResult<&'a str, &'a str, E> {
-        for variable in self.0.iter() {
-            if input.starts_with(&variable.key) {
-                return Ok((&input[variable.key.len()..], &variable.value));
-            }
-        }
-
-        is_not("$")(input)
-    }
-}
-
-// TODO: parse everything in one step
-#[allow(clippy::let_and_return)]
-pub fn config_expand(s: &str) -> IResult<&str, String, VerboseError<&str>> {
-    let (_, variables) = map(
-        many0(variable_section),
-        |variables: Vec<Option<Variable>>| {
-            let variables: Vec<Variable> = variables.into_iter().flatten().collect();
-            Variables::from(variables)
-        },
-    )(s)?;
-    let (_, output) = escaped_transform(is_not("\\"), '\\', value(" ", tag("\n")))(s)?;
-    let result = escaped_transform(is_not("$"), '$', alt(&variables))(output.as_ref())
-        .map_err(|_err: Err<VerboseError<&str>>| {
-            Err::<VerboseError<&str>>::Error(VerboseError::<&str> {
-                errors: vec![(
-                    "",
-                    nom::error::VerboseErrorKind::Context("invalid variable"),
-                )],
-            })
-        })
-        .map(|(_, o)| (s, o));
-    result
 }
 
 pub fn config_parser(s: &str) -> CResult<'_, Config> {

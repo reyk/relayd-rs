@@ -26,6 +26,12 @@ impl Options {
             "Specify an alternative configuration file",
             crate::RELAYD_CONFIG,
         );
+        opts.optmulti(
+            "D",
+            "",
+            "Define macro to be set to value on the command line",
+            "macro=value",
+        );
         opts.optflagmulti("v", "verbose", "Enable verbose logging");
 
         Self { args, opts, prog }

@@ -1,4 +1,8 @@
-use crate::{config::Config, error::Error, options::Options};
+use crate::{
+    config::{Config, Variables},
+    error::Error,
+    options::Options,
+};
 use nix::sys::wait::{waitpid, WaitStatus};
 use privsep::{process::Parent, Error as PrivsepError};
 use privsep_log::{info, warn};
@@ -48,7 +52,16 @@ pub async fn init<const N: usize>(parent: Parent<N>) -> Result<(), Error> {
         .opt_str("f")
         .unwrap_or_else(|| crate::RELAYD_CONFIG.to_string());
 
-    let _config = Config::load(&path).await?;
+    let mut variables = Variables::new();
+    for variable in matches.opt_strs("D") {
+        let kv = variable.split('=').collect::<Vec<_>>();
+        if kv.len() != 2 {
+            return Err(Error::ParserError(variable));
+        }
+        variables.insert(kv[0].to_string(), kv[1].to_string());
+    }
+
+    let _config = Config::load(&path, variables).await?;
 
     Ok(())
 }
