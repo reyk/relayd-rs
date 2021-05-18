@@ -114,8 +114,8 @@ fn protocol_option(s: &str) -> CResult<'_, ()> {
         map(preceded(tag("return"), line), |_| {
             debug!("return");
         }),
-        map(preceded(alt((tag("block"), tag("match"))), line), |_| {
-            debug!("match");
+        map(pair(alt((tag("block"), tag("match"))), line), |(t, _)| {
+            debug!("{}", t);
         }),
         map(preceded(tag("tcp"), line), |_| {
             debug!("tcp");
