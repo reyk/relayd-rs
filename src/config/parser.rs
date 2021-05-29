@@ -92,7 +92,7 @@ fn timeout(s: &str) -> CResult<'_, Duration> {
 fn host(s: &str) -> CResult<'_, Host> {
     map(tuple((sep, string, sep)), |(_, name, _)| Host {
         name: name.to_string(),
-        ..Default::default()
+        ..Host::new()
     })(s)
 }
 
@@ -119,6 +119,7 @@ fn table(s: &str) -> CResult<'_, Table> {
             name: name.to_string(),
             disabled: disable.is_some(),
             hosts,
+            ..Table::new()
         },
     )(s)
 }
@@ -136,6 +137,7 @@ fn redirect(s: &str) -> CResult<'_, Redirect> {
         )),
         |(_, _, name, _, _, _, _)| Redirect {
             name: name.to_string(),
+            ..Redirect::new()
         },
     )(s)
 }
@@ -153,6 +155,7 @@ fn relay(s: &str) -> CResult<'_, Relay> {
         )),
         |(_, _, name, _, _, _, _)| Relay {
             name: name.to_string(),
+            ..Relay::new()
         },
     )(s)
 }
@@ -210,6 +213,7 @@ fn protocol(s: &str) -> CResult<'_, Protocol> {
         |(typ, _, _, _, name, _, _, _)| Protocol {
             name: name.to_string(),
             typ: typ.unwrap_or_default(),
+            ..Protocol::new()
         },
     )(s)
 }

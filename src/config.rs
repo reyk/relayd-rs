@@ -10,6 +10,7 @@ use serde_with::{serde_as, DurationMilliSeconds, DurationSeconds};
 use std::{
     collections::HashMap,
     path::{Path, PathBuf},
+    sync::atomic::{AtomicU32, Ordering},
     time::Duration,
 };
 use tokio::fs;
@@ -96,9 +97,26 @@ pub type Variables = HashMap<String, String>;
 /// General relayd object Id.
 pub type Id = u32;
 
+/// Counter of tables.
+pub static TABLE_ID: AtomicU32 = AtomicU32::new(1);
+
+/// Counter of hosts.
+pub static HOST_ID: AtomicU32 = AtomicU32::new(1);
+
+/// Counter of redirects.
+pub static REDIRECT_ID: AtomicU32 = AtomicU32::new(1);
+
+/// Counter of relays.
+pub static RELAY_ID: AtomicU32 = AtomicU32::new(1);
+
+/// Counter of protocols.
+pub static PROTOCOL_ID: AtomicU32 = AtomicU32::new(1);
+
 /// Table of hosts.
 #[derive(Debug, Default, Deserialize, Serialize)]
 pub struct Table {
+    /// Id.
+    id: Id,
     /// Symbolic name of the table.
     name: String,
     /// Target host pool.
@@ -107,9 +125,20 @@ pub struct Table {
     disabled: bool,
 }
 
+impl Table {
+    fn new() -> Self {
+        Self {
+            id: TABLE_ID.fetch_add(1, Ordering::SeqCst),
+            ..Default::default()
+        }
+    }
+}
+
 /// Target host pool and definitions.
 #[derive(Debug, Default, Deserialize, Serialize)]
 pub struct Host {
+    /// Id.
+    id: Id,
     /// FQDN or IP address of the host.
     name: String,
     /// Time-to-live value in the IP headers for host checks.
@@ -122,14 +151,47 @@ pub struct Host {
     retry: usize,
 }
 
+impl Host {
+    fn new() -> Self {
+        Self {
+            id: HOST_ID.fetch_add(1, Ordering::SeqCst),
+            ..Default::default()
+        }
+    }
+}
+
 #[derive(Debug, Default, Deserialize, Serialize)]
 pub struct Redirect {
+    /// Id.
+    id: Id,
+    /// Symbolic name of the redirect.
     name: String,
+}
+
+impl Redirect {
+    fn new() -> Self {
+        Self {
+            id: REDIRECT_ID.fetch_add(1, Ordering::SeqCst),
+            ..Default::default()
+        }
+    }
 }
 
 #[derive(Debug, Default, Deserialize, Serialize)]
 pub struct Relay {
+    /// Id.
+    id: Id,
+    /// Symbolic name of the relay.
     name: String,
+}
+
+impl Relay {
+    fn new() -> Self {
+        Self {
+            id: RELAY_ID.fetch_add(1, Ordering::SeqCst),
+            ..Default::default()
+        }
+    }
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -147,8 +209,21 @@ impl Default for ProtocolType {
 
 #[derive(Debug, Default, Deserialize, Serialize)]
 pub struct Protocol {
+    /// Id.
+    id: Id,
+    /// Symbolic name of the protocol.
     name: String,
+    /// Protocol or application type.
     typ: ProtocolType,
+}
+
+impl Protocol {
+    fn new() -> Self {
+        Self {
+            id: PROTOCOL_ID.fetch_add(1, Ordering::SeqCst),
+            ..Default::default()
+        }
+    }
 }
 
 #[cfg(test)]
