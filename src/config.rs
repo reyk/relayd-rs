@@ -6,15 +6,49 @@ use expand::config_expand;
 use nom::{error::convert_error, Finish};
 use parser::config_parser;
 use serde_derive::{Deserialize, Serialize};
-use std::{collections::HashMap, path::Path};
+use serde_with::{serde_as, DurationMilliSeconds, DurationSeconds};
+use std::{
+    collections::HashMap,
+    path::{Path, PathBuf},
+    time::Duration,
+};
 use tokio::fs;
 
-#[derive(Debug, Default, Deserialize, Serialize)]
+#[serde_as]
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(default)]
 pub struct Config {
+    /// The interval in seconds at which the hosts will be checked.
+    #[serde_as(as = "DurationSeconds<u64>")]
+    interval: Duration,
+    /// Create a control socket at path.
+    socket: PathBuf,
+    /// The global timeout in milliseconds for checks.
+    #[serde_as(as = "DurationMilliSeconds<u64>")]
+    timeout: Duration,
+
     redirects: Vec<Redirect>,
     relays: Vec<Relay>,
     protocols: Vec<Protocol>,
     tables: Vec<Table>,
+    // Currently not supported:
+    //agentx: not supported
+    //log: TODO
+    //prefork: not supported
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        Self {
+            interval: crate::CHECK_INTERVAL,
+            socket: PathBuf::from(crate::RELAYD_SOCKET),
+            timeout: crate::CHECK_TIMEOUT,
+            redirects: Default::default(),
+            relays: Default::default(),
+            protocols: Default::default(),
+            tables: Default::default(),
+        }
+    }
 }
 
 impl Config {
@@ -59,9 +93,33 @@ impl ToString for Variable {
 
 pub type Variables = HashMap<String, String>;
 
+/// General relayd object Id.
+pub type Id = u32;
+
+/// Table of hosts.
 #[derive(Debug, Default, Deserialize, Serialize)]
 pub struct Table {
+    /// Symbolic name of the table.
     name: String,
+    /// Target host pool.
+    hosts: Vec<Host>,
+    /// Whether to disable the table.
+    disabled: bool,
+}
+
+/// Target host pool and definitions.
+#[derive(Debug, Default, Deserialize, Serialize)]
+pub struct Host {
+    /// FQDN or IP address of the host.
+    name: String,
+    /// Time-to-live value in the IP headers for host checks.
+    ip_ttl: Option<u8>,
+    /// Optional parent Id to inherit the state from.
+    parent: Option<Id>,
+    /// Optional route priority.
+    priority: Option<u8>,
+    /// Retry tolerance for host checks.
+    retry: usize,
 }
 
 #[derive(Debug, Default, Deserialize, Serialize)]

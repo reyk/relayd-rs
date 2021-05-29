@@ -1,19 +1,26 @@
-use crate::config::{Config, Protocol, ProtocolType, Redirect, Relay, Table};
+use crate::config::{Config, Host, Protocol, ProtocolType, Redirect, Relay, Table};
 use nom::{
     branch::alt,
     bytes::complete::{tag, take_until, take_while1},
-    character::complete::{char, multispace0},
-    combinator::{all_consuming, eof, map, not, opt, peek},
+    character::complete::{char, digit1, multispace0},
+    combinator::{all_consuming, eof, map, map_res, not, opt, peek, recognize},
     error::VerboseError,
     multi::{many0, many_till},
-    sequence::{delimited, pair, preceded, tuple},
+    sequence::{delimited, pair, preceded, separated_pair, tuple},
     IResult,
 };
 use privsep_log::debug;
+use std::{path::PathBuf, time::Duration};
 
 pub(super) type CResult<'a, T> = IResult<&'a str, T, VerboseError<&'a str>>;
 
 enum Section {
+    // Global configuration.
+    Interval(Duration),
+    Socket(PathBuf),
+    Timeout(Duration),
+
+    // Other sections.
     Table(Table),
     Redirect(Redirect),
     Relay(Relay),
@@ -25,6 +32,18 @@ fn section(s: &str) -> CResult<'_, Section> {
     preceded(
         not(eof),
         alt((
+            map(interval, |d| {
+                debug!("interval {:?}", d);
+                Section::Interval(d)
+            }),
+            map(socket, |p| {
+                debug!("socket {:?}", p);
+                Section::Socket(p)
+            }),
+            map(timeout, |d| {
+                debug!("timeout {:?}", d);
+                Section::Timeout(d)
+            }),
             map(table, |t| {
                 debug!("{:?}", t);
                 Section::Table(t)
@@ -50,6 +69,41 @@ fn section(s: &str) -> CResult<'_, Section> {
     )(s)
 }
 
+fn interval(s: &str) -> CResult<'_, Duration> {
+    map(
+        separated_pair(tag("interval"), nl, integer),
+        |(_, seconds)| Duration::from_secs(seconds),
+    )(s)
+}
+
+fn socket(s: &str) -> CResult<'_, PathBuf> {
+    map(separated_pair(tag("socket<"), nl, string), |(_, path)| {
+        PathBuf::from(path)
+    })(s)
+}
+
+fn timeout(s: &str) -> CResult<'_, Duration> {
+    map(
+        separated_pair(tag("timeout"), nl, integer),
+        |(_, seconds)| Duration::from_millis(seconds),
+    )(s)
+}
+
+fn host(s: &str) -> CResult<'_, Host> {
+    map(tuple((sep, string, sep)), |(_, name, _)| Host {
+        name: name.to_string(),
+        ..Default::default()
+    })(s)
+}
+
+fn table_options(s: &str) -> CResult<'_, Vec<Host>> {
+    delimited(
+        char('{'),
+        map(many_till(host, peek(char('}'))), |(hosts, _)| hosts),
+        char('}'),
+    )(s)
+}
+
 fn table(s: &str) -> CResult<'_, Table> {
     map(
         tuple((
@@ -57,12 +111,14 @@ fn table(s: &str) -> CResult<'_, Table> {
             nl,
             delimited(char('<'), string, char('>')),
             nl,
-            char('{'),
-            take_until("}"),
+            opt(pair(tag("disable"), nl)),
+            table_options,
             line,
         )),
-        |(_, _, name, _n, _, _, _)| Table {
+        |(_, _, name, _n, disable, hosts, _)| Table {
             name: name.to_string(),
+            disabled: disable.is_some(),
+            hosts,
         },
     )(s)
 }
@@ -190,8 +246,16 @@ pub(super) fn nl(s: &str) -> CResult<'_, Option<&str>> {
     alt((map(multispace0, |_| None), map(comment, Some)))(s)
 }
 
+fn sep(s: &str) -> CResult<'_, ()> {
+    map(tuple((nl, opt(char(',')), nl)), |_| ())(s)
+}
+
 pub(super) fn comment(s: &str) -> CResult<'_, &str> {
     preceded(pair(nl, char('#')), line)(s)
+}
+
+fn integer(s: &str) -> CResult<'_, u64> {
+    map_res(recognize(digit1), str::parse)(s)
 }
 
 pub fn config_parser(s: &str) -> CResult<'_, Config> {
@@ -199,6 +263,9 @@ pub fn config_parser(s: &str) -> CResult<'_, Config> {
         let mut config = Config::default();
         for section in sections {
             match section {
+                Section::Interval(d) => config.interval = d,
+                Section::Socket(p) => config.socket = p,
+                Section::Timeout(d) => config.timeout = d,
                 Section::Table(t) => config.tables.push(t),
                 Section::Redirect(r) => config.redirects.push(r),
                 Section::Relay(r) => config.relays.push(r),

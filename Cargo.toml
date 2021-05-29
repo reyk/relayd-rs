@@ -3,7 +3,6 @@ name = "relayd"
 version = "0.1.0"
 authors = ["Reyk Floeter <contact@reykfloeter.com>"]
 edition = "2018"
-resolver = "2"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -19,6 +18,7 @@ privsep-derive = { version = "0.0.1-test.6" }
 privsep-log = { version = "0.0.1-test.2" }
 serde = "1.0.125"
 serde_derive = "1.0.125"
+serde_with = "1.9"
 
 [dependencies.tokio]
 version = "1.4.0"
