@@ -1,4 +1,4 @@
-use crate::Child;
+use crate::{parent::default_handler, Child, Privsep};
 use privsep_log::info;
 use std::sync::Arc;
 
@@ -10,9 +10,11 @@ pub async fn main<const N: usize>(
         .await
         .map_err(|err| privsep::Error::GeneralError(Box::new(err)))?;
 
-    let _child = Arc::new(child);
+    let child = Arc::new(child);
 
     info!("Started");
 
-    futures::future::pending().await
+    loop {
+        let _message = default_handler::<()>(&child[Privsep::PARENT_ID]).await?;
+    }
 }

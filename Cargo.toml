@@ -13,9 +13,9 @@ getopts = "0.2.21"
 log = "0.4.14"
 nix = "0.20.0"
 nom = "6.1.2"
-privsep = { version = "0.0.1-test.6", features = [ "log" ] }
-privsep-derive = { version = "0.0.1-test.6" }
-privsep-log = { version = "0.0.1-test.2" }
+privsep = { version = "0.0.1-test.6", features = [ "log" ], path = "../privsep-rs/privsep" }
+privsep-derive = { version = "0.0.1-test.6", path = "../privsep-rs/privsep-derive" }
+privsep-log = { version = "0.0.1-test.2", path = "../privsep-rs/log" }
 serde = "1.0.125"
 serde_derive = "1.0.125"
 serde_with = "1.9"

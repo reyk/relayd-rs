@@ -19,19 +19,23 @@ use tokio::fs;
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(default)]
 pub struct Config {
+    /// Privsep and log configuration.
+    #[serde(skip)]
+    pub privsep: privsep::Config,
+
     /// The interval in seconds at which the hosts will be checked.
     #[serde_as(as = "DurationSeconds<u64>")]
-    interval: Duration,
+    pub interval: Duration,
     /// Create a control socket at path.
-    socket: PathBuf,
+    pub socket: PathBuf,
     /// The global timeout in milliseconds for checks.
     #[serde_as(as = "DurationMilliSeconds<u64>")]
-    timeout: Duration,
+    pub timeout: Duration,
 
-    redirects: Vec<Redirect>,
-    relays: Vec<Relay>,
-    protocols: Vec<Protocol>,
-    tables: Vec<Table>,
+    pub redirects: Vec<Redirect>,
+    pub relays: Vec<Relay>,
+    pub protocols: Vec<Protocol>,
+    pub tables: Vec<Table>,
     // Currently not supported:
     //agentx: not supported
     //log: TODO
@@ -41,6 +45,7 @@ pub struct Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
+            privsep: Default::default(),
             interval: crate::CHECK_INTERVAL,
             socket: PathBuf::from(crate::RELAYD_SOCKET),
             timeout: crate::CHECK_TIMEOUT,
