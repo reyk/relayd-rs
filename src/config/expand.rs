@@ -34,7 +34,7 @@ impl Token {
             }
             Token::UseVariable(name) if variables.contains_key(name) => {
                 if let Some(value) = variables.get(name) {
-                    output.push_str(&value);
+                    output.push_str(value);
                 }
             }
             Token::Nested(values) => {
@@ -62,10 +62,10 @@ impl ToString for Token {
             }
             Token::UseVariable(name) => {
                 result.push('$');
-                result.push_str(&name);
+                result.push_str(name);
             }
             Token::Escaped(value) => {
-                result.push_str(&value);
+                result.push_str(value);
             }
             Token::Nested(values) => {
                 result = values
@@ -75,7 +75,7 @@ impl ToString for Token {
                     .join("\n");
             }
             Token::Next(value) => {
-                result.push_str(&value);
+                result.push_str(value);
             }
             Token::None => {}
         }
