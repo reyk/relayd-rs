@@ -13,9 +13,9 @@ getopts = "0.2.21"
 log = "0.4.14"
 nix = "0.22.1"
 nom = "7.0.0"
-privsep = { version = "0.0.1-test.6", features = [ "log" ] }
-privsep-derive = "0.0.1-test.6"
-privsep-log = "0.0.1-test.2"
+privsep = { version = "0.0.1-test.7", features = [ "log" ] }
+privsep-derive = "0.0.1-test.7"
+privsep-log = "0.0.1-test.3"
 serde = "1.0.125"
 serde_derive = "1.0.125"
 serde_with = "1.9"
@@ -24,7 +24,7 @@ serde_with = "1.9"
 version = "1.4.0"
 features = [ "fs", "net", "time", "rt-multi-thread", "macros", "io-util", "signal" ]
 
-[patch.crates-io]
-privsep = { version = "0.0.1-test.6", git = "https://github.com/reyk/privsep-rs.git" }
-privsep-derive = { version = "0.0.1-test.6", git = "https://github.com/reyk/privsep-rs.git" }
-privsep-log = { version = "0.0.1-test.2", git = "https://github.com/reyk/privsep-rs.git" }
+#[patch.crates-io]
+#privsep = { version = "0.0.1-test.7", git = "https://github.com/reyk/privsep-rs.git" }
+#privsep-derive = { version = "0.0.1-test.7", git = "https://github.com/reyk/privsep-rs.git" }
+#privsep-log = { version = "0.0.1-test.3", git = "https://github.com/reyk/privsep-rs.git" }

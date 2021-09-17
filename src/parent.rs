@@ -15,6 +15,7 @@ use privsep_log::{debug, info, warn};
 use serde::de::DeserializeOwned;
 use std::{process, sync::Arc};
 use tokio::signal::unix::{signal, SignalKind};
+
 pub async fn main<const N: usize>(
     parent: Parent<N>,
     privsep: privsep::Config,
