@@ -13,18 +13,20 @@ getopts = "0.2.21"
 log = "0.4.14"
 nix = "0.22.1"
 nom = "7.0.0"
-privsep = { version = "0.0.1-test.7", features = [ "log" ] }
-privsep-derive = "0.0.1-test.7"
-privsep-log = "0.0.1-test.3"
-serde = "1.0.125"
-serde_derive = "1.0.125"
+privsep = { version = "0.0.1", features = [ "log" ] }
+privsep-derive = "0.0.1"
+privsep-log = "0.0.1"
+serde = { version = "1.0.125", features = ["derive"] }
 serde_with = "1.9"
 
 [dependencies.tokio]
 version = "1.4.0"
 features = [ "fs", "net", "time", "rt-multi-thread", "macros", "io-util", "signal" ]
 
+[features]
+debug = [ "privsep-log/debug" ]
+
 #[patch.crates-io]
-#privsep = { version = "0.0.1-test.7", git = "https://github.com/reyk/privsep-rs.git" }
-#privsep-derive = { version = "0.0.1-test.7", git = "https://github.com/reyk/privsep-rs.git" }
-#privsep-log = { version = "0.0.1-test.3", git = "https://github.com/reyk/privsep-rs.git" }
+#privsep = { path = "../privsep-rs/privsep" }
+#privsep-derive = {  path = "../privsep-rs/privsep-derive" }
+#privsep-log = { path = "../privsep-rs/log" }

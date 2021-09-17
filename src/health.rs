@@ -1,5 +1,10 @@
-use crate::{parent::default_handler, Child, Privsep};
-use privsep_log::info;
+use crate::{
+    message::{self, Data},
+    parent::default_handler,
+    Child, Privsep,
+};
+use privsep::imsg::Message;
+use privsep_log::{info, trace};
 use std::sync::Arc;
 
 pub async fn main<const N: usize>(
@@ -15,6 +20,21 @@ pub async fn main<const N: usize>(
     info!("Started");
 
     loop {
-        let _message = default_handler::<()>(&child[Privsep::PARENT_ID]).await?;
+        let message = default_handler::<Data>(&child[Privsep::PARENT_ID]).await?;
+
+        match message {
+            Some((
+                Message {
+                    id: message::CONFIG,
+                    ..
+                },
+                _,
+                Data::Config(config),
+            )) => {
+                trace!("received config: {:?}", config);
+            }
+            None => {}
+            _ => panic!("unexpected message"),
+        }
     }
 }

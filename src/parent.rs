@@ -1,6 +1,7 @@
 use crate::{
     config::{Config, Variables},
     error::Error,
+    message::{self, Data},
     options::Options,
     Privsep,
 };
@@ -41,12 +42,14 @@ pub async fn main<const N: usize>(
 
     info!("Started");
 
-    // Send a message to all children.
+    // Send the configuration to all children.
     for id in Privsep::PROCESS_IDS
         .iter()
         .filter(|id| **id != Privsep::PARENT_ID)
     {
-        parent[*id].send_message(23u32.into(), None, &()).await?;
+        parent[*id]
+            .send_message(message::CONFIG.into(), None, &Data::from(&config))
+            .await?;
     }
 
     loop {

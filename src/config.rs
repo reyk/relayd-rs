@@ -5,7 +5,7 @@ use crate::error::Error;
 use expand::config_expand;
 use nom::{error::convert_error, Finish};
 use parser::config_parser;
-use serde_derive::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize};
 use serde_with::{serde_as, DurationMilliSeconds, DurationSeconds};
 use std::{
     collections::HashMap,
@@ -16,7 +16,7 @@ use std::{
 use tokio::fs;
 
 #[serde_as]
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(default)]
 pub struct Config {
     /// Privsep and log configuration.
@@ -118,7 +118,7 @@ pub static RELAY_ID: AtomicU32 = AtomicU32::new(1);
 pub static PROTOCOL_ID: AtomicU32 = AtomicU32::new(1);
 
 /// Table of hosts.
-#[derive(Debug, Default, Deserialize, Serialize)]
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
 pub struct Table {
     /// Id.
     id: Id,
@@ -140,7 +140,7 @@ impl Table {
 }
 
 /// Target host pool and definitions.
-#[derive(Debug, Default, Deserialize, Serialize)]
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
 pub struct Host {
     /// Id.
     id: Id,
@@ -165,7 +165,7 @@ impl Host {
     }
 }
 
-#[derive(Debug, Default, Deserialize, Serialize)]
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
 pub struct Redirect {
     /// Id.
     id: Id,
@@ -182,7 +182,7 @@ impl Redirect {
     }
 }
 
-#[derive(Debug, Default, Deserialize, Serialize)]
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
 pub struct Relay {
     /// Id.
     id: Id,
@@ -199,7 +199,7 @@ impl Relay {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
 enum ProtocolType {
     Tcp,
     Http,
@@ -212,7 +212,7 @@ impl Default for ProtocolType {
     }
 }
 
-#[derive(Debug, Default, Deserialize, Serialize)]
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
 pub struct Protocol {
     /// Id.
     id: Id,
