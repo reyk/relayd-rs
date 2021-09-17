@@ -1,3 +1,11 @@
 [alias]
 ci-clippy = "clippy --all --workspace --all-features -- -Dwarnings -Drust-2018-idioms"
 ci-fmt = "fmt --all -- --check"
+
+# The runner must be specified per target.
+[target.x86_64-unknown-linux-gnu]
+runner = 'sudo'
+[target.x86_64-apple-darwin]
+runner = 'sudo'
+[target.x86_64-unknown-openbsd]
+runner = 'doas'
