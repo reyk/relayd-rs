@@ -1,7 +1,7 @@
 use crate::{
     config::{Config, Variables},
     error::Error,
-    message::{self, Data},
+    message::{Data, Type},
     options::Options,
     Privsep,
 };
@@ -43,8 +43,8 @@ pub async fn main<const N: usize>(
     info!("Started");
 
     // Send the configuration to all children.
-    send_to_all(&parent, message::CONFIG, None, &Data::from(&config)).await?;
-    send_to_all(&parent, message::START, None, &Data::None).await?;
+    send_to_all(&parent, Type::Config, None, &Data::from(&config)).await?;
+    send_to_all(&parent, Type::Start, None, &Data::None).await?;
 
     loop {
         tokio::select! {
@@ -61,18 +61,16 @@ pub async fn main<const N: usize>(
                 }
             }
 
-            _message = default_handler::<()>(&parent[Privsep::HEALTH_ID]) => break,
-            _message = default_handler::<()>(&parent[Privsep::RELAY_ID]) => break,
-            _message = default_handler::<()>(&parent[Privsep::REDIRECT_ID]) => break,
+            message = default_handler::<()>(&parent[Privsep::HEALTH_ID]) => { message?; },
+            message = default_handler::<()>(&parent[Privsep::RELAY_ID]) => { message?; },
+            message = default_handler::<()>(&parent[Privsep::REDIRECT_ID]) => { message?; },
         }
     }
-
-    Ok(())
 }
 
-async fn send_to_all<const N: usize>(
+async fn send_to_all<T: Into<Message> + Clone, const N: usize>(
     parent: &Parent<N>,
-    id: u32,
+    id: T,
     fd: Option<&Fd>,
     data: &Data<'_>,
 ) -> io::Result<()> {
@@ -80,20 +78,19 @@ async fn send_to_all<const N: usize>(
         .iter()
         .filter(|i| **i != Privsep::PARENT_ID)
     {
-        parent[*i].send_message(id.into(), fd, data).await?;
+        parent[*i].send_message(id.clone().into(), fd, data).await?;
     }
 
     Ok(())
 }
 
-pub async fn send_to_peer(
+pub async fn send_to_peer<T: Into<Message>>(
     peer: &Peer,
-    id: u32,
+    id: T,
     fd: Option<&Fd>,
     data: &Data<'_>,
 ) -> io::Result<()> {
-    let message = id.into();
-    peer.send_message(message, fd, data).await
+    peer.send_message(id.into(), fd, data).await
 }
 
 pub async fn init<const N: usize>(_parent: &Parent<N>) -> Result<Config, Error> {
@@ -121,12 +118,11 @@ pub async fn init<const N: usize>(_parent: &Parent<N>) -> Result<Config, Error> 
 pub async fn default_handler<T: DeserializeOwned>(
     peer: &Peer,
 ) -> Result<(Message, Option<Fd>, T), Error> {
-    debug!("Receiving from {}", peer.as_ref());
     match peer.recv_message::<T>().await? {
         None => Err(Error::Terminated(peer.as_ref())),
         Some((message, fd, data)) => {
             debug!(
-                "received message {:?}", message;
+                "received message {}", Type::from(message.id);
                 "source" => peer.as_ref(),
             );
 

@@ -1,19 +1,48 @@
 use crate::config::{Config, Id};
+use derive_more::Display;
 use privsep::imsg::Message;
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
 
-/// Send configuration
-pub const CONFIG: u32 = Message::RESERVED + 1;
+#[derive(Clone, Copy, Debug, Display)]
+#[repr(u32)]
+pub enum Type {
+    /// Send configuration
+    Config = Message::RESERVED + 1,
+    /// Start process operation
+    Start,
+    /// Host is up
+    HostUp,
+    /// Host is down
+    HostDown,
+    /// Unknown message
+    Unknown,
+}
 
-/// Start process operation
-pub const START: u32 = Message::RESERVED + 2;
+impl Type {
+    pub const CONFIG: u32 = Self::Config as u32;
+    pub const START: u32 = Self::Start as u32;
+    pub const HOST_UP: u32 = Self::HostUp as u32;
+    pub const HOST_DOWN: u32 = Self::HostDown as u32;
+}
 
-/// Host is up
-pub const HOST_UP: u32 = Message::RESERVED + 3;
+impl From<u32> for Type {
+    fn from(id: u32) -> Self {
+        match id {
+            Type::CONFIG => Self::Config,
+            Type::START => Self::Start,
+            Type::HOST_UP => Self::HostUp,
+            Type::HOST_DOWN => Self::HostDown,
+            _ => Self::Unknown,
+        }
+    }
+}
 
-/// Host is down
-pub const HOST_DOWN: u32 = Message::RESERVED + 4;
+impl From<Type> for Message {
+    fn from(typ: Type) -> Self {
+        Self::from(typ as u32)
+    }
+}
 
 /// Internal message data
 #[derive(Debug, Deserialize, Serialize)]

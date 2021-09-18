@@ -1,6 +1,6 @@
 use crate::{
     error::Error,
-    message::*,
+    message::{Data, Type},
     parent::{default_handler, send_to_peer},
     Child, Context, Privsep,
 };
@@ -29,11 +29,11 @@ pub async fn main<const N: usize>(
         tokio::select! {
             message = default_handler::<Data<'_>>(&context.child[Privsep::PARENT_ID]) => {
                 match message? {
-                    (Message { id: CONFIG, .. }, _, Data::Config(new_config)) => {
+                    (Message { id: Type::CONFIG, .. }, _, Data::Config(new_config)) => {
                         trace!("received config: {:?}", new_config);
                         context.config.store(Arc::new(new_config.into_owned()));
                     }
-                    (Message { id: START, .. }, ..) => {
+                    (Message { id: Type::START, .. }, ..) => {
                         trace!("received start command");
                         run(context.clone()).await
                     }
@@ -87,23 +87,23 @@ async fn run<const N: usize>(context: Context<N>) {
                 }
 
                 while let Some(result) = tasks.next().await {
-                    let (message, id) = match result? {
+                    let (typ, id) = match result? {
                         Ok(id) => {
                             debug!("host {} is UP", id);
-                            (HOST_UP, id)
+                            (Type::HostUp, id)
                         }
                         Err(id) => {
                             debug!("host {} is DOWN", id);
-                            (HOST_DOWN, id)
+                            (Type::HostDown, id)
                         }
                     };
 
                     let peer = &context.child[Privsep::REDIRECT_ID];
-                    send_to_peer(peer, message, None, &Data::Host(id))
+                    send_to_peer(peer, typ, None, &Data::Host(id))
                         .await
                         .unwrap();
                     let peer = &context.child[Privsep::RELAY_ID];
-                    send_to_peer(peer, message, None, &Data::Host(id))
+                    send_to_peer(peer, typ, None, &Data::Host(id))
                         .await
                         .unwrap();
                 }
