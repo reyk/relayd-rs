@@ -4,6 +4,8 @@ use std::io;
 /// Common errors of the `privsep` crate.
 #[derive(Debug, Display, From)]
 pub enum Error {
+    #[display(fmt = "Invalid message")]
+    InvalidMessage,
     #[display(fmt = "I/O error: {}", "_0")]
     IoError(io::Error),
     #[display(fmt = "Invalid arguments: {}", "_0")]

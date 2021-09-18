@@ -1,8 +1,4 @@
-use crate::{
-    message::{self, Data},
-    parent::default_handler,
-    Child, Privsep,
-};
+use crate::{error::Error, message::*, parent::default_handler, Child, Privsep};
 use privsep::imsg::Message;
 use privsep_log::{info, trace};
 use std::sync::Arc;
@@ -20,21 +16,29 @@ pub async fn main<const N: usize>(
     info!("Started");
 
     loop {
-        let message = default_handler::<Data>(&child[Privsep::PARENT_ID]).await?;
-
-        match message {
-            Some((
-                Message {
-                    id: message::CONFIG,
-                    ..
-                },
-                _,
-                Data::Config(config),
-            )) => {
-                trace!("received config: {:?}", config);
+        tokio::select! {
+            message = default_handler::<Data<'_>>(&child[Privsep::PARENT_ID]) => {
+                match message? {
+                    (Message { id: CONFIG, .. }, _, Data::Config(config)) => {
+                        trace!("received config: {:?}", config);
+                    }
+                    (Message { id: START, .. }, ..) => {
+                        trace!("received start command");
+                    }
+                    _ => return Err(Error::InvalidMessage.into()),
+                }
             }
-            None => {}
-            _ => panic!("unexpected message"),
+            message = default_handler::<Data<'_>>(&child[Privsep::HEALTH_ID]) => {
+                match message? {
+                    (Message { id: HOST_UP, .. }, _, Data::Host(id)) => {
+                        trace!("received host UP: {}", id);
+                    }
+                    (Message { id: HOST_DOWN, .. }, _, Data::Host(id)) => {
+                        trace!("received host DOWN: {}", id);
+                    }
+                    _ => return Err(Error::InvalidMessage.into()),
+                }
+            }
         }
     }
 }

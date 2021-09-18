@@ -7,6 +7,7 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+arc-swap = "1.4.0"
 derive_more = "0.99"
 futures = "0.3.14"
 getopts = "0.2.21"
@@ -18,6 +19,7 @@ privsep-derive = "0.0.1"
 privsep-log = "0.0.1"
 serde = { version = "1.0.125", features = ["derive"] }
 serde_with = "1.9"
+tokio-ping = "0.3.0"
 
 [dependencies.tokio]
 version = "1.4.0"

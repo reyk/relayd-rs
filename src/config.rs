@@ -121,13 +121,13 @@ pub static PROTOCOL_ID: AtomicU32 = AtomicU32::new(1);
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 pub struct Table {
     /// Id.
-    id: Id,
+    pub id: Id,
     /// Symbolic name of the table.
-    name: String,
+    pub name: String,
     /// Target host pool.
-    hosts: Vec<Host>,
+    pub hosts: Vec<Host>,
     /// Whether to disable the table.
-    disabled: bool,
+    pub disabled: bool,
 }
 
 impl Table {
@@ -143,17 +143,17 @@ impl Table {
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 pub struct Host {
     /// Id.
-    id: Id,
+    pub id: Id,
     /// FQDN or IP address of the host.
-    name: String,
+    pub name: String,
     /// Time-to-live value in the IP headers for host checks.
-    ip_ttl: Option<u8>,
+    pub ip_ttl: Option<u8>,
     /// Optional parent Id to inherit the state from.
-    parent: Option<Id>,
+    pub parent: Option<Id>,
     /// Optional route priority.
-    priority: Option<u8>,
+    pub priority: Option<u8>,
     /// Retry tolerance for host checks.
-    retry: usize,
+    pub retry: usize,
 }
 
 impl Host {
@@ -168,9 +168,9 @@ impl Host {
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 pub struct Redirect {
     /// Id.
-    id: Id,
+    pub id: Id,
     /// Symbolic name of the redirect.
-    name: String,
+    pub name: String,
 }
 
 impl Redirect {
@@ -185,9 +185,9 @@ impl Redirect {
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 pub struct Relay {
     /// Id.
-    id: Id,
+    pub id: Id,
     /// Symbolic name of the relay.
-    name: String,
+    pub name: String,
 }
 
 impl Relay {
@@ -200,7 +200,7 @@ impl Relay {
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize)]
-enum ProtocolType {
+pub enum ProtocolType {
     Tcp,
     Http,
     Dns,
@@ -215,11 +215,11 @@ impl Default for ProtocolType {
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 pub struct Protocol {
     /// Id.
-    id: Id,
+    pub id: Id,
     /// Symbolic name of the protocol.
-    name: String,
+    pub name: String,
     /// Protocol or application type.
-    typ: ProtocolType,
+    pub typ: ProtocolType,
 }
 
 impl Protocol {

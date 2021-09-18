@@ -69,6 +69,16 @@ fn section(s: &str) -> CResult<'_, Section> {
     )(s)
 }
 
+fn section_options<T>(s: &str, c: fn(&str) -> CResult<'_, T>) -> CResult<'_, Vec<T>> {
+    delimited(
+        char('{'),
+        map(many_till(c, peek(char('}'))), |options: (Vec<T>, _)| {
+            options.0
+        }),
+        char('}'),
+    )(s)
+}
+
 fn interval(s: &str) -> CResult<'_, Duration> {
     map(
         separated_pair(tag("interval"), nl, integer),
@@ -104,12 +114,16 @@ fn table_options(s: &str) -> CResult<'_, Vec<Host>> {
     )(s)
 }
 
+fn table_name(s: &str) -> CResult<'_, &str> {
+    delimited(char('<'), string, char('>'))(s)
+}
+
 fn table(s: &str) -> CResult<'_, Table> {
     map(
         tuple((
             tag("table"),
             nl,
-            delimited(char('<'), string, char('>')),
+            table_name,
             nl,
             opt(pair(tag("disable"), nl)),
             table_options,
@@ -124,18 +138,41 @@ fn table(s: &str) -> CResult<'_, Table> {
     )(s)
 }
 
+enum RedirectOption {
+    PfTag(String),
+    Ignore,
+}
+
+fn redirect_option(s: &str) -> CResult<'_, RedirectOption> {
+    alt((
+        map(preceded(tag("listen"), line), |_| {
+            debug!("return");
+            RedirectOption::Ignore
+        }),
+        map(preceded(tag("pftag"), line), |line| {
+            debug!("pftag");
+            RedirectOption::PfTag(line.to_string())
+        }),
+        map(
+            tuple((tag("forward"), nl, tag("to"), nl, table_name, line)),
+            |_line| {
+                debug!("forward");
+                RedirectOption::Ignore
+            },
+        ),
+        map(comment, |_| RedirectOption::Ignore),
+        map(nl, |_| RedirectOption::Ignore),
+    ))(s)
+}
+
+fn redirect_options(s: &str) -> CResult<'_, Vec<RedirectOption>> {
+    section_options(s, redirect_option)
+}
+
 fn redirect(s: &str) -> CResult<'_, Redirect> {
     map(
-        tuple((
-            tag("redirect"),
-            nl,
-            quoted,
-            nl,
-            char('{'),
-            take_until("}"),
-            line,
-        )),
-        |(_, _, name, _, _, _, _)| Redirect {
+        tuple((tag("redirect"), nl, quoted, nl, redirect_options, line)),
+        |(name, _, _, _, _, _)| Redirect {
             name: name.to_string(),
             ..Redirect::new()
         },
@@ -185,17 +222,8 @@ fn protocol_option(s: &str) -> CResult<'_, ()> {
     ))(s)
 }
 
-fn protocol_options(s: &str) -> CResult<'_, ()> {
-    delimited(
-        char('{'),
-        map(
-            many_till(protocol_option, peek(char('}'))),
-            |_options: (Vec<()>, _)| {
-                // TODO
-            },
-        ),
-        char('}'),
-    )(s)
+fn protocol_options(s: &str) -> CResult<'_, Vec<()>> {
+    section_options(s, protocol_option)
 }
 
 fn protocol(s: &str) -> CResult<'_, Protocol> {

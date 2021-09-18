@@ -7,8 +7,10 @@ mod parent;
 mod redirect;
 mod relay;
 
+use crate::config::Config;
+use arc_swap::ArcSwap;
 use privsep_derive::Privsep;
-use std::time::Duration;
+use std::{sync::Arc, time::Duration};
 pub use {
     error::Error,
     options::Options,
@@ -28,6 +30,13 @@ pub enum Privsep {
     Redirect,
     /// L7 Relays
     Relay,
+}
+
+/// Child context
+#[derive(Clone)]
+struct Context<const N: usize> {
+    pub config: Arc<ArcSwap<Config>>,
+    pub child: Arc<Child<N>>,
 }
 
 /// Default configuration path.

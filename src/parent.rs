@@ -14,7 +14,7 @@ use privsep::{
 };
 use privsep_log::{debug, info, warn};
 use serde::de::DeserializeOwned;
-use std::{process, sync::Arc};
+use std::{io, process, sync::Arc};
 use tokio::signal::unix::{signal, SignalKind};
 
 pub async fn main<const N: usize>(
@@ -43,14 +43,8 @@ pub async fn main<const N: usize>(
     info!("Started");
 
     // Send the configuration to all children.
-    for id in Privsep::PROCESS_IDS
-        .iter()
-        .filter(|id| **id != Privsep::PARENT_ID)
-    {
-        parent[*id]
-            .send_message(message::CONFIG.into(), None, &Data::from(&config))
-            .await?;
-    }
+    send_to_all(&parent, message::CONFIG, None, &Data::from(&config)).await?;
+    send_to_all(&parent, message::START, None, &Data::None).await?;
 
     loop {
         tokio::select! {
@@ -67,11 +61,39 @@ pub async fn main<const N: usize>(
                 }
             }
 
-            _message = default_handler::<()>(&parent[Privsep::HEALTH_ID]) => {}
-            _message = default_handler::<()>(&parent[Privsep::RELAY_ID]) => {}
-            _message = default_handler::<()>(&parent[Privsep::REDIRECT_ID]) => {}
+            _message = default_handler::<()>(&parent[Privsep::HEALTH_ID]) => break,
+            _message = default_handler::<()>(&parent[Privsep::RELAY_ID]) => break,
+            _message = default_handler::<()>(&parent[Privsep::REDIRECT_ID]) => break,
         }
     }
+
+    Ok(())
+}
+
+async fn send_to_all<const N: usize>(
+    parent: &Parent<N>,
+    id: u32,
+    fd: Option<&Fd>,
+    data: &Data<'_>,
+) -> io::Result<()> {
+    for i in Privsep::PROCESS_IDS
+        .iter()
+        .filter(|i| **i != Privsep::PARENT_ID)
+    {
+        parent[*i].send_message(id.into(), fd, data).await?;
+    }
+
+    Ok(())
+}
+
+pub async fn send_to_peer(
+    peer: &Peer,
+    id: u32,
+    fd: Option<&Fd>,
+    data: &Data<'_>,
+) -> io::Result<()> {
+    let message = id.into();
+    peer.send_message(message, fd, data).await
 }
 
 pub async fn init<const N: usize>(_parent: &Parent<N>) -> Result<Config, Error> {
@@ -98,7 +120,7 @@ pub async fn init<const N: usize>(_parent: &Parent<N>) -> Result<Config, Error> 
 
 pub async fn default_handler<T: DeserializeOwned>(
     peer: &Peer,
-) -> Result<Option<(Message, Option<Fd>, T)>, Error> {
+) -> Result<(Message, Option<Fd>, T), Error> {
     debug!("Receiving from {}", peer.as_ref());
     match peer.recv_message::<T>().await? {
         None => Err(Error::Terminated(peer.as_ref())),
@@ -108,7 +130,7 @@ pub async fn default_handler<T: DeserializeOwned>(
                 "source" => peer.as_ref(),
             );
 
-            Ok(Some((message, fd, data)))
+            Ok((message, fd, data))
         }
     }
 }
