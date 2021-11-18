@@ -59,6 +59,7 @@ async fn run<const N: usize>(context: Context<N>) {
             let config = context.config.load();
 
             tokio::spawn(async move {
+                let _ = &context;
                 let mut tasks = FuturesUnordered::new();
                 let timeout = config.timeout;
 
